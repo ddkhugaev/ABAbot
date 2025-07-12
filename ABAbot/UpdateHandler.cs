@@ -62,7 +62,7 @@ public class UpdateHandler
             else
             {
                 session.Step = Step.MainMenu;
-                await ShowMainMenu(chatId, user.Name);
+                await ShowMainMenu(chatId, user.Name, session);
             }
 
             return;
@@ -90,7 +90,7 @@ public class UpdateHandler
                 session.FullName = text;
                 session.Step = Step.MainMenu;
                 await usersRepository.AddAsync(new ABAbot.Db.Models.User { Id = session.UserId, Name = session.FullName });
-                await ShowMainMenu(chatId, session.FullName, isEdit);
+                await ShowMainMenu(chatId, session.FullName, session, isEdit);
                 break;
 
             case Step.Question1:
@@ -121,7 +121,7 @@ public class UpdateHandler
                 var gptRecommendations = await GenerateIdeas(session);
 
                 // добавление икигай в бд
-                await ikigaiesRepository.AddAsync(new Ikigai { UserId = session.UserId,
+                await ikigaiesRepository.AddAsync(new Ikigai { UserId = chatId,
                     GptAns = gptRecommendations,
                     Date = DateTime.Now,
                     WhatYouLove = session.Love,
@@ -141,7 +141,7 @@ public class UpdateHandler
                     UpdateLastMessageId(chatId, sentMessage.MessageId);
                 }
 
-                await ShowMainMenu(chatId, session.FullName, isEdit);
+                await ShowMainMenu(chatId, session.FullName, session, isEdit);
                 break;
         }
     }
@@ -163,12 +163,13 @@ public class UpdateHandler
         }
     }
 
-    private async Task ShowMainMenu(long chatId, string name, bool isEdit = false)
+    private async Task ShowMainMenu(long chatId, string name, UserSession session, bool isEdit = false)
     {
         var menu = new InlineKeyboardMarkup(
             InlineKeyboardButton.WithCallbackData("🧭 Пройти Икигаи", "start_ikigai"));
 
-        var messageText = $"👋 Привет, {name}!\nВыберите действие:";
+        var userok = await usersRepository.TryGetByIdAsync(chatId);
+        var messageText = $"👋 Привет, {userok.Name}!\nВыберите действие:";
 
         if (isEdit && _lastMessageIds.ContainsKey(chatId))
         {
