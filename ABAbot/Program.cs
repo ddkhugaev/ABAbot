@@ -12,10 +12,13 @@ Host.CreateDefaultBuilder(args)
 		services.AddSingleton<Dictionary<long, UserSession>>();
 		services.AddHostedService<TelegramBotService>();
 
-        services.AddDbContext<DatabaseContext>(options =>
+		// Поключение бд
+		services.AddDbContext<DatabaseContext>(options =>
         {
             options.UseSqlite("Data Source=ababot.db");
         });
+        services.AddTransient<IUsersRepository, UsersDbRepository>();
+        services.AddTransient<IIkigaiesRepository, IkigaiesDbRepository>();
     })
 	.Build()
 	.Run();
