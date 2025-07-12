@@ -27,7 +27,7 @@ public class TelegramBotService : BackgroundService
 			receiverOptions: new ReceiverOptions(),
 			cancellationToken: stoppingToken);
 
-		Console.WriteLine("🤖 Бот запущен");
+		Console.WriteLine("Бот запущен");
 		return Task.CompletedTask;
 	}
 }

@@ -15,6 +15,7 @@ public class UpdateHandler
     private readonly Dictionary<long, int> _lastMessageIds;
 
     readonly IUsersRepository usersRepository;
+    readonly IIkigaiesRepository ikigaiesRepository;
 
     public UpdateHandler(IServiceProvider services)
     {
@@ -24,7 +25,7 @@ public class UpdateHandler
         _lastMessageIds = new Dictionary<long, int>();
 
         usersRepository = services.GetRequiredService<IUsersRepository>();
-
+        ikigaiesRepository = services.GetRequiredService<IIkigaiesRepository>();
     }
 
     public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
@@ -45,7 +46,7 @@ public class UpdateHandler
         var text = message.Text ?? "";
 
         if (!_sessions.ContainsKey(chatId))
-            _sessions[chatId] = new UserSession() { UserId = userId };
+            _sessions[chatId] = new UserSession() { UserId = message.From.Id };
 
         var session = _sessions[chatId];
 
@@ -95,26 +96,39 @@ public class UpdateHandler
             case Step.Question1:
                 session.Love = text;
                 session.Step = Step.Question2;
-                await SendOrEditMessage(chatId, "💪 В чём вы хороши?", isEdit);
+                await SendOrEditMessage(chatId, "💪 То, в чем вы хороши – ваши навыки и компетенции, то, в чем у вас есть талант", isEdit);
                 break;
 
             case Step.Question2:
                 session.GoodAt = text;
                 session.Step = Step.Question3;
-                await SendOrEditMessage(chatId, "💰 За что вам могут платить?", isEdit);
+                await SendOrEditMessage(chatId, "💰 То, за что вам могут платить – деятельность, которая приносит доход", isEdit);
                 break;
 
             case Step.Question3:
                 session.PaidFor = text;
                 session.Step = Step.Question4;
-                await SendOrEditMessage(chatId, "🌍 Что нужно миру?", isEdit);
+                await SendOrEditMessage(chatId, "🌍 То, что нужно миру – деятельность, которая приносит пользу обществу или решает важные проблемы", isEdit);
                 break;
 
             case Step.Question4:
                 session.WorldNeeds = text;
                 session.Step = Step.MainMenu;
 
+                var sentMessage = await _bot.SendMessage(chatId, "🔮Ищем вдохновение...🔎");
+                UpdateLastMessageId(chatId, sentMessage.MessageId);
+
                 var gptRecommendations = await GenerateIdeas(session);
+
+                // добавление икигай в бд
+                await ikigaiesRepository.AddAsync(new Ikigai { UserId = session.UserId,
+                    GptAns = gptRecommendations,
+                    Date = DateTime.Now,
+                    WhatYouLove = session.Love,
+                    WhatYouAreGoodAt = session.GoodAt,
+                    WhatYouCanBePaidFor = session.PaidFor,
+                    WhatTheWorldNeeds = session.WorldNeeds });
+
                 var resultText = $"🚀{session.FullName}, {gptRecommendations}";
 
                 if (isEdit)
@@ -123,7 +137,7 @@ public class UpdateHandler
                 }
                 else
                 {
-                    var sentMessage = await _bot.SendMessage(chatId, resultText);
+                    sentMessage = await _bot.SendMessage(chatId, resultText);
                     UpdateLastMessageId(chatId, sentMessage.MessageId);
                 }
 
@@ -144,7 +158,7 @@ public class UpdateHandler
         if (query.Data == "start_ikigai")
         {
             session.Step = Step.Question1;
-            await _bot.EditMessageText(chatId, query.Message.MessageId, "❤️ Что вы любите?");
+            await _bot.EditMessageText(chatId, query.Message.MessageId, "❤️ То, что вы любите – ваши страсти, увлечения, то, что приносит радость");
             UpdateLastMessageId(chatId, query.Message.MessageId);
         }
     }
@@ -152,7 +166,7 @@ public class UpdateHandler
     private async Task ShowMainMenu(long chatId, string name, bool isEdit = false)
     {
         var menu = new InlineKeyboardMarkup(
-            InlineKeyboardButton.WithCallbackData("🧭 Пройти Икигай", "start_ikigai"));
+            InlineKeyboardButton.WithCallbackData("🧭 Пройти Икигаи", "start_ikigai"));
 
         var messageText = $"👋 Привет, {name}!\nВыберите действие:";
 

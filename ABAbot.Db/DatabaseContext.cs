@@ -22,6 +22,8 @@ namespace ABAbot.Db
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<User>().HasMany(u => u.Ikigaies).WithOne().HasForeignKey(i => i.UserId);
         }
     }
 }
