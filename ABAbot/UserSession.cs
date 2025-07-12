@@ -5,6 +5,7 @@
 	public string? GoodAt { get; set; }
 	public string? PaidFor { get; set; }
 	public string? WorldNeeds { get; set; }
+	public long UserId { get; set; }
 	public Step Step { get; set; } = Step.AskName;
 }
 
