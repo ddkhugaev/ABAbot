@@ -12,10 +12,12 @@ Host.CreateDefaultBuilder(args)
 		services.AddSingleton<Dictionary<long, UserSession>>();
 		services.AddHostedService<TelegramBotService>();
 
-		// Поключение бд
-		services.AddDbContext<DatabaseContext>(options =>
+        // Поключение бд
+        var projectDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
+        var dbPath = Path.Combine(projectDir, "database.db");
+        services.AddDbContext<DatabaseContext>(options =>
         {
-            options.UseSqlite("Data Source=ababot.db");
+            options.UseSqlite($"Data Source={dbPath}");
         });
         services.AddTransient<IUsersRepository, UsersDbRepository>();
         services.AddTransient<IIkigaiesRepository, IkigaiesDbRepository>();
