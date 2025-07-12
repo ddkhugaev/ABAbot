@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
+using YandexGpt;
 
 public class UpdateHandler
 {
@@ -95,8 +97,8 @@ public class UpdateHandler
 				session.WorldNeeds = text;
 				session.Step = Step.MainMenu;
 
-				var ideas = GenerateIdeas(session);
-				var resultText = $"🚀 Вот ваши гипотезы, {session.FullName}:\n\n{string.Join("\n\n", ideas)}";
+				var gptRecommendations = await GenerateIdeas(session);
+				var resultText = $"🚀{session.FullName}, {gptRecommendations}";
 
 				if (isEdit)
 				{
@@ -166,14 +168,18 @@ public class UpdateHandler
 		_lastMessageIds[chatId] = messageId;
 	}
 
-	private List<string> GenerateIdeas(UserSession u) => new()
+	private async Task<string> GenerateIdeas(UserSession u)
 	{
-		$"📌 Объедините «{u.Love}» и «{u.WorldNeeds}» — это может быть призвание.",
-		$"💼 Вы хороши в «{u.GoodAt}» и зарабатываете на «{u.PaidFor}». Найдите точку пересечения.",
-		$"🌍 «{u.Love}» и «{u.GoodAt}» — путь к страсти.",
-		$"💰 То, за что платят, и что нужно миру — это может быть ваша миссия.",
-		$"🧭 Всё вместе — возможно, ваш Икигай!"
-	};
+		var gptYandex = new YandexGptClient();
+		var userRequestIkigai = $"Студент прошел опрос по модели Икигаи. Пользователю было задано четыре вопроса и пользователь дал четыре ответа." +
+			$"\nНа вопрос: ‘То,что вы любите (What You Love) – ваши страсти, увлечения, то, что приносит радость.’ пользователь ответил: ‘{u.Love}’." +
+			$"\nНа вопрос: ‘То, в чем вы хороши (What You Are Good At) – ваши навыки и компетенции, то, в чем у вас есть талант.’ пользователь ответил: ‘{u.GoodAt}’." +
+			$"\nНа вопрос: ‘То, за что вам могут платить (What You Can Be Paid For) – деятельность, которая приносит доход.’ пользователь ответил: ‘{u.PaidFor}’." +
+			$"\nНа вопрос: ‘То, что нужно миру (What The World Needs) – деятельность, которая приносит пользу обществу или решает важные проблемы’ пользователь ответил: ‘{u.WorldNeeds}’." +
+			$"\nПроанализируй ответы на поставленные вопросы и напиши рекомендации согласно модели Икигаи.\n";
+
+        return await gptYandex.GetGptResponseAsync(userRequestIkigai);
+	}
 
 	public Task HandlePollingErrorAsync(ITelegramBotClient bot, Exception exception, CancellationToken ct)
 	{
