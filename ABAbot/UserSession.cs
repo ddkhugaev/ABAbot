@@ -16,5 +16,6 @@ public enum Step
 	Question1,
 	Question2,
 	Question3,
-	Question4
+	Question4,
+    MarketIntelligenceQuestion
 }

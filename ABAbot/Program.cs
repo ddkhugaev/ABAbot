@@ -19,6 +19,7 @@ Host.CreateDefaultBuilder(args)
         {
             options.UseSqlite($"Data Source={dbPath}");
         });
+        services.AddTransient<IUserGptRequestLogsDbRepository, UserGptRequestLogsDbRepository>();
         services.AddTransient<IUsersRepository, UsersDbRepository>();
         services.AddTransient<IIkigaiesRepository, IkigaiesDbRepository>();
     })

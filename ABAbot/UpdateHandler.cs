@@ -13,7 +13,7 @@ public class UpdateHandler
     private readonly Dictionary<long, UserSession> _sessions;
     private readonly ITelegramBotClient _bot;
     private readonly Dictionary<long, int> _lastMessageIds;
-
+    private readonly IUserGptRequestLogsDbRepository _userGptRequestLogsDbRepository;
     readonly IUsersRepository usersRepository;
     readonly IIkigaiesRepository ikigaiesRepository;
 
@@ -26,6 +26,7 @@ public class UpdateHandler
 
         usersRepository = services.GetRequiredService<IUsersRepository>();
         ikigaiesRepository = services.GetRequiredService<IIkigaiesRepository>();
+        _userGptRequestLogsDbRepository = services.GetRequiredService<IUserGptRequestLogsDbRepository>();
     }
 
     public async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
@@ -96,19 +97,19 @@ public class UpdateHandler
             case Step.Question1:
                 session.Love = text;
                 session.Step = Step.Question2;
-                await SendOrEditMessage(chatId, "💪 То, в чем вы хороши – ваши навыки и компетенции, то, в чем у вас есть талант", isEdit);
+                await SendOrEditMessageAsync(chatId, "💪 То, в чем вы хороши – ваши навыки и компетенции, то, в чем у вас есть талант", isEdit);
                 break;
 
             case Step.Question2:
                 session.GoodAt = text;
                 session.Step = Step.Question3;
-                await SendOrEditMessage(chatId, "💰 То, за что вам могут платить – деятельность, которая приносит доход", isEdit);
+                await SendOrEditMessageAsync(chatId, "💰 То, за что вам могут платить – деятельность, которая приносит доход", isEdit);
                 break;
 
             case Step.Question3:
                 session.PaidFor = text;
                 session.Step = Step.Question4;
-                await SendOrEditMessage(chatId, "🌍 То, что нужно миру – деятельность, которая приносит пользу обществу или решает важные проблемы", isEdit);
+                await SendOrEditMessageAsync(chatId, "🌍 То, что нужно миру – деятельность, которая приносит пользу обществу или решает важные проблемы", isEdit);
                 break;
 
             case Step.Question4:
@@ -118,18 +119,21 @@ public class UpdateHandler
                 var sentMessage = await _bot.SendMessage(chatId, "🔮Ищем вдохновение...🔎");
                 UpdateLastMessageId(chatId, sentMessage.MessageId);
 
-                var gptRecommendations = await GenerateIdeas(session);
+                var gptBusinessIdeas = await GenerateIdeas(session);
+
+                var existingUser = await usersRepository.TryGetByIdAsync(chatId);
+
 
                 // добавление икигай в бд
                 await ikigaiesRepository.AddAsync(new Ikigai { UserId = chatId,
-                    GptAns = gptRecommendations,
+                    GptAns = gptBusinessIdeas,
                     Date = DateTime.Now,
                     WhatYouLove = session.Love,
                     WhatYouAreGoodAt = session.GoodAt,
                     WhatYouCanBePaidFor = session.PaidFor,
                     WhatTheWorldNeeds = session.WorldNeeds });
 
-                var resultText = $"🚀{session.FullName}, {gptRecommendations}";
+                var resultText = $"🚀{existingUser.Name}, {gptBusinessIdeas}";
 
                 if (isEdit)
                 {
@@ -141,7 +145,32 @@ public class UpdateHandler
                     UpdateLastMessageId(chatId, sentMessage.MessageId);
                 }
 
-                await ShowMainMenu(chatId, session.FullName, session, isEdit);
+                await ShowMainMenu(chatId, existingUser.Name, session, isEdit);
+                break;
+
+            case Step.MarketIntelligenceQuestion:
+                session.Step = Step.MainMenu;
+
+                var awaitMessage = await _bot.SendMessage(chatId, "🔮Анализируем рынок...🔎");
+                UpdateLastMessageId(chatId, awaitMessage.MessageId);
+                
+                var gptRecommendations = await GetGptRecommendations(text);
+
+                var existingUser1 = await usersRepository.TryGetByIdAsync(chatId);
+
+                //добавление в бд
+                await _userGptRequestLogsDbRepository.AddAsync(new UserGptRequestLog
+                {
+                    UserId = chatId,
+                    Date = DateTime.Now,
+                    GptAnswer = gptRecommendations,
+                    UserRequest = text
+                });
+
+                var answerText = $"🚀{existingUser1.Name}, {gptRecommendations}";
+
+                await SendOrEditMessageAsync(chatId, answerText, isEdit);
+                await ShowMainMenu(chatId, existingUser1.Name, session, isEdit);
                 break;
         }
     }
@@ -161,12 +190,20 @@ public class UpdateHandler
             await _bot.EditMessageText(chatId, query.Message.MessageId, "❤️ То, что вы любите – ваши страсти, увлечения, то, что приносит радость");
             UpdateLastMessageId(chatId, query.Message.MessageId);
         }
+
+        if(query.Data == "market_intelligence")
+        {
+            session.Step = Step.MarketIntelligenceQuestion;
+            await _bot.EditMessageText(chatId, query.Message.MessageId, "🔥 Помогу исследовать рынок! По какой нише вы бы хотели получить подсказку?\nНапример: 'Конные прогулки в горах'");
+            UpdateLastMessageId(chatId, query.Message.MessageId);
+        }
     }
 
     private async Task ShowMainMenu(long chatId, string name, UserSession session, bool isEdit = false)
     {
         var menu = new InlineKeyboardMarkup(
-            InlineKeyboardButton.WithCallbackData("🧭 Пройти Икигаи", "start_ikigai"));
+            InlineKeyboardButton.WithCallbackData("🧭 Пройти Икигаи", "start_ikigai"),
+            InlineKeyboardButton.WithCallbackData("🔍️ Разведка рынка", "market_intelligence"));
 
         var userok = await usersRepository.TryGetByIdAsync(chatId);
         var messageText = $"👋 Привет, {userok.Name}!\nВыберите действие:";
@@ -182,7 +219,7 @@ public class UpdateHandler
         }
     }
 
-    private async Task SendOrEditMessage(long chatId, string text, bool isEdit)
+    private async Task SendOrEditMessageAsync(long chatId, string text, bool isEdit)
     {
         if (isEdit && _lastMessageIds.ContainsKey(chatId))
         {
@@ -208,7 +245,7 @@ public class UpdateHandler
             $"\nНа вопрос: ‘То, в чем вы хороши (What You Are Good At) – ваши навыки и компетенции, то, в чем у вас есть талант.’ пользователь ответил: ‘{u.GoodAt}’." +
             $"\nНа вопрос: ‘То, за что вам могут платить (What You Can Be Paid For) – деятельность, которая приносит доход.’ пользователь ответил: ‘{u.PaidFor}’." +
             $"\nНа вопрос: ‘То, что нужно миру (What The World Needs) – деятельность, которая приносит пользу обществу или решает важные проблемы’ пользователь ответил: ‘{u.WorldNeeds}’." +
-            $"\nПроанализируй ответы на поставленные вопросы и напиши рекомендации согласно модели Икигаи.\n";
+            $"\nПроанализируй ответы на поставленные вопросы и напиши рекомендации согласно модели Икигаи. Не используй разметку Markdown!";
 
         return await gptYandex.GetGptResponseAsync(userRequestIkigai);
     }
@@ -217,5 +254,12 @@ public class UpdateHandler
     {
         Console.WriteLine($"Ошибка: {exception.Message}");
         return Task.CompletedTask;
+    }
+
+    private async Task<string> GetGptRecommendations(string userPrompt)
+    {
+        var gptYandex = new YandexGptClient();
+        var userRequest = $"Разведка рынка. Тема бизнес проекта - {userPrompt}. Дай подсказки по исследованию ниши и ссылки на рынки без гипотез. Например, где можно посмотреть данные по отчетности корпораций. Не используй разметку Markdown!";
+        return await gptYandex.GetGptResponseAsync(userRequest);
     }
 }

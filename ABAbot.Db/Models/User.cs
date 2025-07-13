@@ -11,5 +11,6 @@ namespace ABAbot.Db.Models
         public long Id { get; set; }
         public string Name { get; set; }
         public List<Ikigai> Ikigaies { get; set; }
+        public List<UserGptRequestLog> GptRequestLogs { get; set; }
     }
 }

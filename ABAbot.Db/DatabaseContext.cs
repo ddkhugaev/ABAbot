@@ -12,7 +12,7 @@ namespace ABAbot.Db
     {
         public DbSet<User> Users { get; set; }
         public DbSet<Ikigai> Ikigaies { get; set; }
-        
+        public DbSet<UserGptRequestLog> UserGptRequestLogs { get; set; }
 
         public DatabaseContext(DbContextOptions<DatabaseContext> options) : base(options)
         {
@@ -23,7 +23,14 @@ namespace ABAbot.Db
         {
             base.OnModelCreating(modelBuilder);
 
-            modelBuilder.Entity<User>().HasMany(u => u.Ikigaies).WithOne().HasForeignKey(i => i.UserId);
+            modelBuilder.Entity<User>()
+                .HasMany(u => u.Ikigaies)
+                .WithOne()
+                .HasForeignKey(i => i.UserId);
+            modelBuilder.Entity<User>()
+                .HasMany(u => u.GptRequestLogs)
+                .WithOne()
+                .HasForeignKey(x => x.UserId);
         }
     }
 }
