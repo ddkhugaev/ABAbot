@@ -12,7 +12,7 @@ Host.CreateDefaultBuilder(args)
 		services.AddSingleton<Dictionary<long, UserSession>>();
 		services.AddHostedService<TelegramBotService>();
 
-        // Поключение бд
+        // Поключение бд 
         var projectDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\.."));
         var dbPath = Path.Combine(projectDir, "database.db");
         services.AddDbContext<DatabaseContext>(options =>
